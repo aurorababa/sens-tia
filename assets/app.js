@@ -96,7 +96,7 @@
     e.preventDefault(); clearErrors(); var bad = [];
     var name = document.getElementById("name"), email = document.getElementById("email"), phone = document.getElementById("phone");
     if (!name.value.trim()) { name.closest(".field").classList.add("invalid"); bad.push({ id: "name", msg: T("Please enter your name.", "Ju lutemi shkruani emrin tuaj.") }); }
-    if (!email.value.trim() && !phone.value.trim()) { email.closest(".field").classList.add("invalid"); bad.push({ id: "email", msg: T("Please give an email address or a phone number.", "Ju lutemi jepni një email ose një numër telefoni.") }); }
+    if (!email.value.trim()) { email.closest(".field").classList.add("invalid"); bad.push({ id: "email", msg: T("Please give your email address.", "Ju lutemi jepni adresën tuaj të email-it.") }); }
     else if (email.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) { email.closest(".field").classList.add("invalid"); bad.push({ id: "email", msg: T("This email address does not look right.", "Ky email nuk duket i saktë.") }); }
     if (!document.getElementById("contactok").checked) { document.getElementById("contactok").closest(".check").classList.add("invalid"); bad.push({ id: "contactok", msg: T("Please tick the box so we may contact you.", "Ju lutemi shënoni kutinë që të mund t’ju kontaktojmë.") }); }
     if (bad.length) { fail(bad); return; }
