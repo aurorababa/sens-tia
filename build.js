@@ -214,7 +214,7 @@ const index = head("SENS-TIA: participants wanted in Tirana | NEUAR", "SENS-TIA:
   <div class="team">
    <div class="person"><div class="avatar" aria-hidden="true">AB</div><div>
     <h3>Aurora Baba</h3><p class="role">${L("Lead researcher · Co-founder of NEUAR", "Studiuesja kryesore · Bashkëthemeluese e NEUAR")}</p>
-    <p>${L("Architect and project manager with 14+ years in the built environment; Postgraduate Certificate in Social Cognition from UCL (Chevening Scholar).", "Arkitekte dhe menaxhere projektesh me mbi 14 vjet përvojë në mjedisin e ndërtuar. Ka përfunduar studime pasuniversitare në Njohjen Shoqërore (Social Cognition) në UCL si bursiste Chevening.")}</p>
+    <p>${L("Architect and project manager with 14+ years in the built environment; Degree from UCL in Social Cognition (Chevening Scholar).", "Arkitekte dhe menaxhere projektesh me mbi 14 vjet përvojë në mjedisin e ndërtuar. Ka përfunduar studime në UCL në Njohjen Shoqërore (Social Cognition) si bursiste Chevening.")}</p>
     <p><a href="mailto:aurora.baba@neuar.org">aurora.baba@neuar.org</a></p></div></div>
    <div class="person"><div class="avatar" aria-hidden="true">AM</div><div>
     <h3>Andela Malaj</h3><p class="role">${L("Medical researcher · Co-founder of NEUAR", "Studiuese mjekësore · Bashkëthemeluese e NEUAR")}</p>
