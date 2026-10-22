@@ -27,3 +27,7 @@ Supabase > Table editor > `screening` (columns: status, participant_code, notes 
 - Check current Supabase free-plan limits: inactive free projects can be paused, so open the dashboard at least weekly during the study.
 - Albanian text is a draft: have a native speaker review it before launch.
 - Photos: the site uses original SVG illustrations. To add open-licence photos, use Unsplash, Pexels or Wikimedia Commons, keep the licence/credit, and add `alt` text.
+
+
+## Study forms (/study/)
+Online questionnaires for the field study. See STUDY_SETUP.md. Files: study/index.html, study.js, study.css, spec.js (all questions, EN/SQ), photos/, sql/02_study.sql.
