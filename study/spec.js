@@ -199,7 +199,7 @@
     { title: "Session", fields: [
       { id: "date", type: "date", label: "Date", plain: true }, tx("researcher", "Researcher"), tx("assistant", "Assistant")] },
     { title: "Conditions", fields: [
-      num("temp_c", "Temperature (°C)", -20, 50, 0.1), num("humidity", "Humidity (%)", 0, 100), tx("wind", "Wind"),
+      num("temp_c", "Temperature (°C)", -20, 50, 0.1), num("humidity", "Humidity (%)", 0, 100), 
       choice("precip", "Precipitation", [{ v: "none", t: "None" }, { v: "light", t: "Light" }, { v: "other", t: "Other" }], { layout: "row", plain: true, optional: true }),
       choice("traffic", "Traffic level", [{ v: "L", t: "Low" }, { v: "M", t: "Medium" }, { v: "H", t: "High" }], { layout: "row", plain: true, optional: true }),
       tx("station", "Nearest GreenAL station"), tx("noise_events", "Notable noise / events")] },
@@ -207,12 +207,10 @@
       yn("caffeine", "Caffeine within the set window"), yn("tobacco", "Tobacco / vaping within the set window"), yn("exercise", "Vigorous exercise within the set window"),
       yn("unwell", "Feels unwell today"), num("sleep_h", "Hours slept last night", 0, 24, 0.5), yn("new_med", "New medication since last visit")] },
     { title: "Devices and clocks", fields: [
-      tx("strap_id", "Strap ID"), tx("phone_id", "Phone ID"), tx("bp_id", "BP monitor ID"), tx("oximeter_id", "Oximeter ID"), tx("hrv_file", "HRV app / file name"), tx("strava", "Strava activity name"),
-      num("clock_offset_s", "Phone clock offset vs reference (s)", -600, 600)] },
+      tx("strap_id", "Strap ID"), tx("bp_id", "BP monitor ID"), tx("oximeter_id", "Oximeter ID"), tx("hrv_file", "HRV app / file name"), tx("strava", "Strava activity name")] },
     { title: "Timings (clock time)", fields: [
       tm("t_base_start", "Baseline rest start"), tm("t_base_end", "Baseline rest end"), tm("t_pre_end", "Pre-measures done"),
-      tm("t_walk_start", "Walk start"), tm("t_walk_end", "Walk end"), tm("t_rest_start", "Post-walk rest start"), tm("t_rest_end", "Post-walk rest end"), tm("t_post_end", "Post-measures done"),
-      tm("cp1", "Checkpoint 1"), tm("cp2", "Checkpoint 2"), tm("cp3", "Checkpoint 3"), tm("cp4", "Checkpoint 4"), tm("cp5", "Checkpoint 5")] },
+      tm("t_walk_start", "Walk start"), tm("t_walk_end", "Walk end"), tm("t_rest_start", "Post-walk rest start"), tm("t_rest_end", "Post-walk rest end"), tm("t_post_end", "Post-measures done")]  },
     { title: "Measurements (before the walk)", fields: bp("pre1", "PRE reading 1", true).concat(bp("pre2", "PRE reading 2", false)) },
     { title: "Measurements (after the walk)", fields: bp("post1", "POST reading 1", true).concat(bp("post2", "POST reading 2", false)) },
     { title: "Digit span", fields: [
