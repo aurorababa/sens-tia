@@ -98,7 +98,7 @@
     bar.innerHTML = "";
     var n = outbox().length, f = failedList().length, st;
     if (S.authBad) st = h("span", { class: "st bad", text: "Key not accepted. Items are kept on this device." });
-    else if (f) st = h("span", { class: "st bad", text: f + " item(s) could not be saved" });
+    else if (f) st = h("span", { class: "st bad", text: f + " item(s) could not be saved. Press Details" });
     else if (n) st = h("span", { class: "st wait", text: (S.flushing ? "Sending… " : "Waiting to send: ") + n });
     else st = h("span", { class: "st ok", text: "All saved" });
     var left = h("div", {}, [st]);
@@ -208,9 +208,7 @@
     for (var n = 1; n <= 3; n++) {
       var nm = siteNameEn(walkSite(n));
       s.push({ key: "before:" + n, form: "before", walk: n, label: "Walk " + n + " (" + nm + "): before the walk" });
-      s.push({ key: "ds_pre:" + n, form: "digit", phase: "pre", walk: n, label: "Walk " + n + ": digit span before the walk", sub: "Researcher screen (phone), read the digits aloud" });
       s.push({ key: "after:" + n, form: "after", walk: n, label: "Walk " + n + " (" + nm + "): after the walk", sub: "after the post-walk rest" });
-      s.push({ key: "ds_post:" + n, form: "digit", phase: "post", walk: n, label: "Walk " + n + ": digit span after the walk", sub: "Researcher screen (phone), read the digits aloud" });
     }
     s.push({ key: "memory", form: "memory", label: "Memory: describe the walks", sub: "End of the day, researcher types what the participant says" });
     s.push({ key: "photos", form: "photos", label: "Memory: photo test (21 photos)", sub: "End of the day, participant uses the tablet" });
@@ -353,6 +351,8 @@
         errBox.hidden = false; errBox.textContent = T("Please answer the highlighted questions (" + v.bad + ").", "Ju lutemi përgjigjuni pyetjeve të theksuara (" + v.bad + ").");
         if (v.first) v.first.scrollIntoView({ block: "center" }); return;
       }
+      if (spec.form_type === "memory" && !ans.free_w1 && !ans.free_w2 && !ans.free_w3 &&
+          !window.confirm("Nothing has been typed. Submit as 'participant declined to describe the walks'?")) return;
       var body = { client_id: uuid(), code: st.code, form_type: spec.form_type, lang: lang(), answers: ans };
       if (step.walk) { body.walk_no = step.walk; body.site = walkSite(step.walk); }
       enqueue({ id: body.client_id, fn: "study_submit_form", body: body, code: st.code, doneKey: step.key });
