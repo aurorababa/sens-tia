@@ -208,10 +208,12 @@
     for (var n = 1; n <= 3; n++) {
       var nm = siteNameEn(walkSite(n));
       s.push({ key: "before:" + n, form: "before", walk: n, label: "Walk " + n + " (" + nm + "): before the walk" });
+      s.push({ key: "ds_pre:" + n, form: "digit", phase: "pre", walk: n, label: "Walk " + n + ": digit span before the walk", sub: "Researcher screen (phone), read the digits aloud" });
       s.push({ key: "after:" + n, form: "after", walk: n, label: "Walk " + n + " (" + nm + "): after the walk", sub: "after the post-walk rest" });
+      s.push({ key: "ds_post:" + n, form: "digit", phase: "post", walk: n, label: "Walk " + n + ": digit span after the walk", sub: "Researcher screen (phone), read the digits aloud" });
     }
     s.push({ key: "memory", form: "memory", label: "Memory: describe the walks", sub: "End of the day, researcher types what the participant says" });
-    s.push({ key: "photos", form: "photos", label: "Memory: photo test (12 photos)", sub: "End of the day, participant uses the tablet" });
+    s.push({ key: "photos", form: "photos", label: "Memory: photo test (21 photos)", sub: "End of the day, participant uses the tablet" });
     return s;
   }
   function doneSet() {
@@ -261,6 +263,7 @@
   }
   function openStep(s) {
     if (s.form === "photos") return viewPhotos();
+    if (s.form === "digit") return viewDigit(s);
     viewForm(s);
   }
 
@@ -424,6 +427,76 @@
       paintBar();
     }
     if (given.length > 0 && given.length < order.length) next(); else intro();
+  }
+
+  /* ---------- backward digit span (researcher screen) ---------- */
+  function digitList(code, phase) {
+    var n = parseInt(code.slice(1), 10);
+    var oddFirstA = (n % 2) === 1;                       // odd codes: A before, B after; even codes: the reverse
+    return (phase === "pre") === oddFirstA ? "A" : "B";
+  }
+  function nextTrial(res) {
+    for (var i = 0; i < 12; i += 2) {
+      if (res[i] === undefined) return i;
+      if (res[i + 1] === undefined) return i + 1;
+      if (res[i] === false && res[i + 1] === false) return -1;
+    }
+    return -1;
+  }
+  function viewDigit(step) {
+    S.view = "digit";
+    var st = S.state, list = digitList(st.code, step.phase), items = SPEC.DIGITS[step.walk][list];
+    var dk = draftKey(st.code, step.key), res = lsj(dk, []), practiceDone = res.length > 0;
+    function save() { ls(dk, JSON.stringify(res)); }
+    function dg(a) { return a.join(" – "); }
+    function rev(a) { return a.slice().reverse(); }
+    function head() {
+      return [h("p", { class: "walkhead", text: st.code + " · walk " + step.walk + " · " + (step.phase === "pre" ? "before" : "after") + " the walk" }),
+        h("h1", { text: "Backward digit span, list " + list }),
+        h("div", { class: "errsum", text: "Researcher screen only. Do not show this screen to the participant." })];
+    }
+    function practice() {
+      var rows = SPEC.DIGIT_PRACTICE.map(function (a, i) {
+        return h("div", { class: "card" }, [h("div", { class: "muted", text: "Practice " + (i + 1) + " of 2 (give feedback)" }), h("div", { class: "digits", text: dg(a) }), h("div", { class: "muted", text: "Correct: " + dg(rev(a)) })]);
+      });
+      show(head().concat([h("div", { class: "card" }, [h("p", { text: "Say: “I am going to read you some numbers. When I finish, please say them back to me in BACKWARDS order. For example, if I say 7–2, you say 2–7. Let’s practise.”" }),
+        h("p", { class: "muted", text: "Read one digit per second, flat voice. No writing, no tapping." })])]).concat(rows).concat([
+        h("p", { class: "muted", text: "After the practice say: “Now we will start. The numbers will get longer. Please do your best.”" }),
+        h("div", { class: "row" }, [h("button", { type: "button", class: "sbtn big", text: "Start the test", onclick: function () { practiceDone = true; trial(); } }), h("button", { type: "button", class: "sbtn sec", text: "Back", onclick: viewDash })])]));
+      paintBar();
+    }
+    function score() {
+      var span = 0, total = 0, i;
+      for (i = 0; i < res.length; i++) if (res[i]) { total++; var L = 3 + Math.floor(i / 2); if (L > span) span = L; }
+      return { span: span, total: total };
+    }
+    function trial() {
+      var i = nextTrial(res);
+      if (i < 0) return finish();
+      var L = 3 + Math.floor(i / 2), t = (i % 2) + 1, a = items[i], sc = score();
+      show(head().concat([
+        h("p", { class: "muted", text: "Length " + L + " · trial " + t + " of 2 · correct so far: " + sc.total }),
+        h("div", { class: "card center" }, [h("div", { class: "digits", text: dg(a) }), h("p", { class: "muted", text: "Read aloud, one digit per second. Correct answer (backwards):" }), h("div", { class: "digits ans", text: dg(rev(a)) })]),
+        h("div", { class: "photo-actions" }, [
+          h("button", { type: "button", class: "sbtn", text: "✓ Correct", onclick: function () { res.push(true); save(); trial(); } }),
+          h("button", { type: "button", class: "sbtn sec", text: "✗ Wrong", onclick: function () { res.push(false); save(); trial(); } })]),
+        h("p", { class: "muted", text: "Say only “Thank you” or “Next one”. A trial is correct only if ALL digits are in exactly reversed order (no partial credit)." }),
+        h("p", {}, [res.length ? h("button", { type: "button", class: "sbtn link", text: "Undo last answer", onclick: function () { res.pop(); save(); trial(); } }) : null])]));
+      paintBar();
+    }
+    function finish() {
+      var sc = score(), stopped = res.length < 12;
+      show(head().concat([h("div", { class: "card" }, [h("h2", { text: "Result" }), h("p", {}, ["Span (longest length with at least one correct trial): ", h("strong", { text: String(sc.span) })]),
+        h("p", {}, ["Total correct: ", h("strong", { text: sc.total + " / 12" })]), h("p", { class: "muted", text: stopped ? "Stopped: both trials at one length were wrong." : "All lengths completed." })]),
+        h("div", { class: "row" }, [h("button", { type: "button", class: "sbtn big", text: "Save", onclick: function () {
+          var trials = res.map(function (ok, i) { return { l: 3 + Math.floor(i / 2), t: (i % 2) + 1, ok: ok }; });
+          var body = { client_id: uuid(), code: st.code, form_type: step.phase === "pre" ? "ds_pre" : "ds_post", walk_no: step.walk, site: walkSite(step.walk), lang: "en", answers: { list: list, span: sc.span, total: sc.total, stopped: stopped, trials: trials } };
+          enqueue({ id: body.client_id, fn: "study_submit_form", body: body, code: st.code, doneKey: step.key });
+          ls(dk, null); if (st.done.indexOf(step.key) < 0) st.done.push(step.key); viewDash();
+        } }), h("button", { type: "button", class: "sbtn sec", text: "Undo last answer", onclick: function () { res.pop(); save(); trial(); } })])]));
+      paintBar();
+    }
+    if (practiceDone) trial(); else practice();
   }
 
   /* ---------- researcher log ---------- */

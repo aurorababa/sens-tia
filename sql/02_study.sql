@@ -19,17 +19,25 @@ create table if not exists public.study_forms (
   id bigint generated always as identity primary key,
   client_id uuid not null unique,
   code text not null references public.study_participants(code) on delete cascade on update cascade,
-  form_type text not null check (form_type in ('enrolment','before','after','memory')),
+  form_type text not null,
   walk_no smallint check (walk_no between 1 and 3),
   site text check (site in ('R','P','L')),
   lang text check (lang in ('en','sq')),
   started_at timestamptz,
   submitted_at timestamptz not null default now(),
   superseded boolean not null default false,
-  answers jsonb not null,
-  check ((form_type in ('before','after') and walk_no is not null) or (form_type in ('enrolment','memory') and walk_no is null))
+  answers jsonb not null
 );
 create unique index if not exists study_forms_current on public.study_forms (code, form_type, coalesce(walk_no, 0)) where not superseded;
+
+-- Allowed form types (re-created on every run so older installs get the digit-span types too).
+do $$ declare r record; begin
+  for r in select conname from pg_constraint where conrelid = 'public.study_forms'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%form_type%' loop
+    execute format('alter table public.study_forms drop constraint %I', r.conname);
+  end loop;
+  alter table public.study_forms add constraint study_forms_type_chk check (form_type in ('enrolment','before','after','ds_pre','ds_post','memory'));
+  alter table public.study_forms add constraint study_forms_walk_chk check ((form_type in ('before','after','ds_pre','ds_post') and walk_no is not null) or (form_type in ('enrolment','memory') and walk_no is null));
+end $$;
 
 -- Which photo is a real route photo and which is a decoy. EDIT THE ROWS BELOW to match your real photos (Table Editor > study_photo_key).
 create table if not exists public.study_photo_key (
@@ -38,10 +46,10 @@ create table if not exists public.study_photo_key (
   is_route boolean not null
 );
 insert into public.study_photo_key (photo_id, site, is_route) values
-  ('p01','R',true),('p02','R',true),('p03','R',true),
-  ('p04','P',true),('p05','P',true),('p06','P',true),
-  ('p07','L',true),('p08','L',true),('p09','L',true),
-  ('p10','R',false),('p11','P',false),('p12','L',false)
+  ('p01','R',true),('p02','R',true),('p03','R',true),('p04','R',true),('p05','R',true),
+  ('p06','P',true),('p07','P',true),('p08','P',true),('p09','P',true),('p10','P',true),
+  ('p11','L',true),('p12','L',true),('p13','L',true),('p14','L',true),('p15','L',true),
+  ('p16','R',false),('p17','R',false),('p18','P',false),('p19','P',false),('p20','L',false),('p21','L',false)
 on conflict (photo_id) do nothing;
 
 create table if not exists public.study_photo_answers (
@@ -135,8 +143,8 @@ declare c text := upper(trim(coalesce(p->>'code', ''))); ft text := p->>'form_ty
 begin
   perform public._study_auth(p_key);
   if not exists (select 1 from public.study_participants where code = c) then raise exception 'unknown_code' using errcode = '22023'; end if;
-  if ft not in ('enrolment','before','after','memory') then raise exception 'bad_form' using errcode = '22023'; end if;
-  if (ft in ('before','after') and (wn is null or wn not between 1 and 3)) or (ft in ('enrolment','memory') and wn is not null) then
+  if ft not in ('enrolment','before','after','ds_pre','ds_post','memory') then raise exception 'bad_form' using errcode = '22023'; end if;
+  if (ft in ('before','after','ds_pre','ds_post') and (wn is null or wn not between 1 and 3)) or (ft in ('enrolment','memory') and wn is not null) then
     raise exception 'bad_walk' using errcode = '22023';
   end if;
   if jsonb_typeof(p->'answers') <> 'object' then raise exception 'bad_answers' using errcode = '22023'; end if;
@@ -187,6 +195,9 @@ revoke all on function public.study_check_key(text), public.study_open(text, tex
 grant execute on function public.study_check_key(text), public.study_open(text, text, text, boolean), public.study_submit_form(text, jsonb),
   public.study_submit_photos(text, jsonb), public.study_save_log(text, jsonb), public.study_get_log(text, text, int) to anon, authenticated;
 
+-- Views are re-created from scratch on every run (their column lists can change).
+drop view if exists public.v_study_enrolment, public.v_study_walks, public.v_study_photos, public.v_study_memory, public.v_study_status;
+
 -- One row per participant: enrolment answers + PSS-4 total (items 2 and 3 reversed, 0-16).
 create or replace view public.v_study_enrolment with (security_invoker = true) as
 select p.code, p.is_test, p.site_order, f.submitted_at, f.lang,
@@ -212,7 +223,9 @@ create or replace view public.v_study_walks with (security_invoker = true) as
 with b as (select code, walk_no, site, submitted_at, answers from public.study_forms where form_type = 'before' and not superseded),
      a as (select code, walk_no, site, submitted_at, answers from public.study_forms where form_type = 'after' and not superseded),
      l as (select code, walk_no, site, updated_at, data from public.study_log),
-     k as (select code, walk_no from b union select code, walk_no from a union select code, walk_no from l)
+     dp as (select code, walk_no, answers from public.study_forms where form_type = 'ds_pre' and not superseded),
+     dq as (select code, walk_no, answers from public.study_forms where form_type = 'ds_post' and not superseded),
+     k as (select code, walk_no from b union select code, walk_no from a union select code, walk_no from l union select code, walk_no from dp union select code, walk_no from dq)
 select k.code, p.is_test, p.site_order, k.walk_no, coalesce(b.site, a.site, l.site) as site,
   b.submitted_at as before_at, a.submitted_at as after_at, l.updated_at as log_at,
   nullif(b.answers->>'stress', '')::numeric as b_stress,
@@ -273,6 +286,10 @@ select k.code, p.is_test, p.site_order, k.walk_no, coalesce(b.site, a.site, l.si
   (nullif(a.answers->>'prs7', '')::numeric + nullif(a.answers->>'prs8', '')::numeric + nullif(a.answers->>'prs9', '')::numeric) / 3.0 as prs_coherence,
   (nullif(a.answers->>'prs10', '')::numeric + nullif(a.answers->>'prs11', '')::numeric) / 2.0 as prs_scope,
   (nullif(a.answers->>'prs1', '')::numeric + nullif(a.answers->>'prs2', '')::numeric + nullif(a.answers->>'prs3', '')::numeric + nullif(a.answers->>'prs4', '')::numeric + nullif(a.answers->>'prs5', '')::numeric + nullif(a.answers->>'prs6', '')::numeric + nullif(a.answers->>'prs7', '')::numeric + nullif(a.answers->>'prs8', '')::numeric + nullif(a.answers->>'prs9', '')::numeric + nullif(a.answers->>'prs10', '')::numeric + nullif(a.answers->>'prs11', '')::numeric) / 11.0 as prs_total,
+  dp.answers->>'list' as ds_pre_list, nullif(dp.answers->>'span', '')::numeric as ds_pre_span, nullif(dp.answers->>'total', '')::numeric as ds_pre_total,
+  dq.answers->>'list' as ds_post_list, nullif(dq.answers->>'span', '')::numeric as ds_post_span, nullif(dq.answers->>'total', '')::numeric as ds_post_total,
+  nullif(dq.answers->>'span', '')::numeric - nullif(dp.answers->>'span', '')::numeric as d_ds_span,
+  nullif(dq.answers->>'total', '')::numeric - nullif(dp.answers->>'total', '')::numeric as d_ds_total,
   nullif(l.data->>'date', '') as l_date,
   nullif(l.data->>'researcher', '') as l_researcher,
   nullif(l.data->>'assistant', '') as l_assistant,
@@ -317,12 +334,6 @@ select k.code, p.is_test, p.site_order, k.walk_no, coalesce(b.site, a.site, l.si
   nullif(l.data->>'post2_sbp', '')::numeric as l_post2_sbp,
   nullif(l.data->>'post2_dbp', '')::numeric as l_post2_dbp,
   nullif(l.data->>'post2_pulse', '')::numeric as l_post2_pulse,
-  nullif(l.data->>'ds_pre_set', '') as l_ds_pre_set,
-  nullif(l.data->>'ds_pre_longest', '')::numeric as l_ds_pre_longest,
-  nullif(l.data->>'ds_pre_total', '')::numeric as l_ds_pre_total,
-  nullif(l.data->>'ds_post_set', '') as l_ds_post_set,
-  nullif(l.data->>'ds_post_longest', '')::numeric as l_ds_post_longest,
-  nullif(l.data->>'ds_post_total', '')::numeric as l_ds_post_total,
   nullif(l.data->>'dropouts', '') as l_dropouts,
   nullif(l.data->>'gps_ok', '') as l_gps_ok,
   nullif(l.data->>'stopped_early', '') as l_stopped_early,
@@ -338,6 +349,8 @@ join public.study_participants p on p.code = k.code
 left join b on b.code = k.code and b.walk_no = k.walk_no
 left join a on a.code = k.code and a.walk_no = k.walk_no
 left join l on l.code = k.code and l.walk_no = k.walk_no
+left join dp on dp.code = k.code and dp.walk_no = k.walk_no
+left join dq on dq.code = k.code and dq.walk_no = k.walk_no
 order by k.code, k.walk_no;
 
 -- One row per photo shown: what was answered, whether it was a route photo, and whether the answer was correct.
@@ -379,6 +392,8 @@ select p.code, p.is_test, p.site_order, p.created_at,
   exists (select 1 from public.study_forms f where f.code = p.code and f.form_type = 'enrolment' and not f.superseded) as enrolment,
   (select count(*) from public.study_forms f where f.code = p.code and f.form_type = 'before' and not f.superseded) as before_forms,
   (select count(*) from public.study_forms f where f.code = p.code and f.form_type = 'after' and not f.superseded) as after_forms,
+  (select count(*) from public.study_forms f where f.code = p.code and f.form_type = 'ds_pre' and not f.superseded) as digit_pre,
+  (select count(*) from public.study_forms f where f.code = p.code and f.form_type = 'ds_post' and not f.superseded) as digit_post,
   exists (select 1 from public.study_forms f where f.code = p.code and f.form_type = 'memory' and not f.superseded) as memory_text,
   exists (select 1 from public.study_photo_answers a where a.code = p.code and not a.superseded) as photo_test,
   (select count(*) from public.study_log l where l.code = p.code) as log_walks

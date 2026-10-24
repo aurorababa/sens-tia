@@ -172,9 +172,9 @@
     ] }]
   };
 
-  /* ---------- photo recognition test (document 04 / SOP 11.3). 12 photos; which ones are route/decoy is stored ONLY in the database table study_photo_key. ---------- */
+  /* ---------- photo recognition test (document 04 / SOP 11.3). 21 photos (5 route + 2 decoys per site); which ones are route/decoy is stored ONLY in the database table study_photo_key. ---------- */
   var PHOTOS = [];
-  for (var i = 1; i <= 12; i++) PHOTOS.push({ id: "p" + (i < 10 ? "0" : "") + i, file: "photos/p" + (i < 10 ? "0" : "") + i + ".jpg" });
+  for (var i = 1; i <= 21; i++) PHOTOS.push({ id: "p" + (i < 10 ? "0" : "") + i, file: "photos/p" + (i < 10 ? "0" : "") + i + ".jpg" });
 
   var PHOTO_TEXT = {
     intro: L("You will now see photos of places, one at a time. Some show places you passed during today's walks and some do not. For each photo, tell us whether you passed this place.",
@@ -184,6 +184,10 @@
     yes: L("Yes, I passed it", "Po, e kalova"), no: L("No, I did not", "Jo, nuk e kalova"),
     start: L("Start", "Fillo")
   };
+
+  /* ---------- backward digit span (document 08): lists per walk number (1-3) and list (A/B); rows are the digits read aloud, 2 trials per length 3-8 ---------- */
+  var DIGITS = {"1":{"A":[[8,9,4],[5,8,2],[2,9,1,5],[8,2,5,1],[1,3,4,8,9],[9,7,2,4,3],[5,7,3,6,1,4],[9,3,1,5,2,7],[1,3,2,8,9,5,4],[8,2,6,7,3,5,4],[1,5,6,9,2,7,8,3],[8,7,1,9,2,3,6,5]],"B":[[8,9,3],[9,5,8],[2,9,3,8],[2,7,4,6],[5,1,6,9,4],[3,6,8,2,9],[6,7,3,1,4,8],[9,3,1,5,8,7],[9,7,1,6,5,3,2],[8,4,5,9,7,1,6],[3,9,5,2,8,7,1,6],[4,6,8,9,7,5,3,1]]},"2":{"A":[[6,3,4],[8,6,2],[9,8,1,7],[4,1,3,6],[8,5,7,9,1],[7,2,9,6,1],[3,4,9,8,6,1],[3,8,4,9,6,7],[7,2,8,6,1,4,3],[2,6,1,3,8,4,5],[7,5,3,2,8,6,1,4],[4,9,8,6,2,3,1,7]],"B":[[4,3,7],[2,4,7],[5,7,9,4],[7,3,5,9],[2,8,5,3,7],[7,8,2,1,4],[6,7,4,2,3,9],[1,3,6,5,9,8],[5,9,4,2,6,3,1],[1,6,7,5,3,4,9],[3,1,5,7,2,6,8,9],[7,4,3,8,1,2,9,6]]},"3":{"A":[[6,4,8],[3,9,1],[2,4,6,5],[1,9,3,8],[4,7,1,8,9],[2,6,7,4,8],[1,4,6,3,9,7],[8,9,5,7,3,2],[4,2,7,9,8,1,6],[3,7,8,4,2,5,9],[1,2,5,6,8,3,7,9],[8,4,5,7,9,1,6,2]],"B":[[2,7,8],[5,2,3],[3,4,7,9],[7,3,1,8],[7,2,8,4,5],[6,1,5,8,7],[4,1,6,8,5,3],[2,6,3,4,7,8],[6,1,9,5,3,7,2],[5,6,1,7,4,8,2],[4,8,5,3,7,9,1,6],[1,9,5,2,8,7,3,6]]}};
+  var DIGIT_PRACTICE = [[4, 1], [7, 6]];
 
   /* ---------- researcher session log (document 06, section B). English only. Entered on the researcher's phone. ---------- */
   function yn(id, label) { return choice("" + id, label, [{ v: "Y", t: "Yes" }, { v: "N", t: "No" }], { layout: "row", plain: true }); }
@@ -213,9 +217,6 @@
       tm("t_walk_start", "Walk start"), tm("t_walk_end", "Walk end"), tm("t_rest_start", "Post-walk rest start"), tm("t_rest_end", "Post-walk rest end"), tm("t_post_end", "Post-measures done")]  },
     { title: "Measurements (before the walk)", fields: bp("pre1", "PRE reading 1", true).concat(bp("pre2", "PRE reading 2", false)) },
     { title: "Measurements (after the walk)", fields: bp("post1", "POST reading 1", true).concat(bp("post2", "POST reading 2", false)) },
-    { title: "Digit span", fields: [
-      tx("ds_pre_set", "PRE list set"), num("ds_pre_longest", "PRE longest length passed", 0, 12), num("ds_pre_total", "PRE total sequences correct", 0, 24),
-      tx("ds_post_set", "POST list set"), num("ds_post_longest", "POST longest length passed", 0, 12), num("ds_post_total", "POST total sequences correct", 0, 24)] },
     { title: "Quality and events", fields: [
       choice("dropouts", "Strap signal dropouts", [{ v: "none", t: "None" }, { v: "some", t: "Some" }, { v: "many", t: "Many" }], { layout: "row", plain: true, optional: true }),
       yn("gps_ok", "GPS OK"), yn("stopped_early", "Stopped early"), tx("stopped_reason", "If stopped early: reason"),
@@ -239,7 +240,7 @@
     return out;
   }
 
-  var SPEC = { L: L, SITES: SITES, ORDERS: ORDERS, ALL_ORDERS: ALL_ORDERS, MOOD_MODULE: MOOD_MODULE, FORMS: FORMS, PHOTOS: PHOTOS, PHOTO_TEXT: PHOTO_TEXT, LOG: LOG, flat: flat,
+  var SPEC = { L: L, SITES: SITES, ORDERS: ORDERS, ALL_ORDERS: ALL_ORDERS, MOOD_MODULE: MOOD_MODULE, FORMS: FORMS, PHOTOS: PHOTOS, PHOTO_TEXT: PHOTO_TEXT, DIGITS: DIGITS, DIGIT_PRACTICE: DIGIT_PRACTICE, LOG: LOG, flat: flat,
                MOOD_IDS: MOOD_ITEMS.map(function (m) { return "mood_" + m[0]; }) };
   if (typeof module !== "undefined" && module.exports) module.exports = SPEC; else root.SPEC = SPEC;
 })(typeof window !== "undefined" ? window : this);
