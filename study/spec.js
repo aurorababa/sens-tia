@@ -228,6 +228,57 @@
   // The yes/no checklist fields are not mandatory either
   LOG.sections.forEach(function (s) { s.fields.forEach(function (f) { if (f.plain) f.optional = true; }); });
 
+
+  /* ---------- ONE log per participant day (document 06 B). Stored as three per-walk rows (same fields as LOG) so the SQL views stay unchanged:
+     the shared day fields are copied into every row, and the measurement after walk n is also saved as the "before" reading of walk n+1. ---------- */
+  var DAY_ONCE = ["date", "researcher", "assistant", "temp_c", "humidity", "precip", "caffeine", "tobacco", "exercise", "unwell", "sleep_h", "new_med",
+                  "strap_id", "bp_id", "oximeter_id", "exported", "exported_time", "notes", "deviations", "initials"];
+  var WALK_EACH = ["station", "traffic", "noise_events", "hrv_file", "strava", "t_walk_start", "t_walk_end", "t_rest_start", "t_rest_end", "t_post_end",
+                   "dropouts", "gps_ok", "stopped_early", "stopped_reason", "incident"];
+  var START_ONLY = ["t_base_start", "t_base_end", "t_pre_end"];
+  var BP_IDS = ["sbp", "dbp", "pulse", "spo2", "spo2_pulse"];
+  function lg(id) { var r = null; LOG.sections.forEach(function (s) { s.fields.forEach(function (f) { if (f.id === id) r = f; }); }); return r; }
+  function cp(f, id) { var o = {}; for (var k in f) o[k] = f[k]; o.id = id; return o; }
+  function buildDayLog(siteNames) {
+    var secs = [];
+    function sec(title, ids) { secs.push({ title: title, fields: ids.map(function (i) { return cp(lg(i), i); }) }); }
+    sec("Day", ["date", "researcher", "assistant", "temp_c", "humidity", "precip"]);
+    sec("Pre-session checklist", ["caffeine", "tobacco", "exercise", "unwell", "sleep_h", "new_med"]);
+    sec("Devices", ["strap_id", "bp_id", "oximeter_id"]);
+    sec("Start of the day: baseline rest", START_ONLY);
+    var pts = [["m0", "Measurements: start of the day (before walk 1)"], ["m1", "Measurements: after walk 1 (= before walk 2)"], ["m2", "Measurements: after walk 2 (= before walk 3)"], ["m3", "Measurements: after walk 3 (final)"]];
+    pts.forEach(function (p, i) {
+      if (i >= 1) secs.push({ title: "Walk " + i + ": " + siteNames[i - 1], fields: WALK_EACH.map(function (id) { return cp(lg(id), "w" + i + "_" + id); }) });
+      secs.push({ title: p[1], fields: bp(p[0] + "_r1", "Reading 1", true).concat(bp(p[0] + "_r2", "Reading 2", false)) });
+    });
+    sec("End of the day", ["exported", "exported_time", "notes", "deviations", "initials"]);
+    return { sections: secs };
+  }
+  function pick(src, ids, pre, dst, dpre) { ids.forEach(function (i) { var v = src[pre + i]; if (v !== undefined && v !== "" && v !== null) dst[dpre + i] = v; }); }
+  function splitDayLog(a) {
+    var out = {};
+    for (var n = 1; n <= 3; n++) {
+      var d = {};
+      pick(a, DAY_ONCE, "", d, "");
+      pick(a, WALK_EACH, "w" + n + "_", d, "");
+      var pre = "m" + (n - 1), post = "m" + n;
+      ["r1", "r2"].forEach(function (r, k) { pick(a, BP_IDS, pre + "_" + r + "_", d, "pre" + (k + 1) + "_"); pick(a, BP_IDS, post + "_" + r + "_", d, "post" + (k + 1) + "_"); });
+      if (n === 1) pick(a, START_ONLY, "", d, "");
+      else { var pv = out[n - 1]; if (pv.t_rest_start) d.t_base_start = pv.t_rest_start; if (pv.t_rest_end) d.t_base_end = pv.t_rest_end; if (pv.t_post_end) d.t_pre_end = pv.t_post_end; }
+      out[n] = d;
+    }
+    return out;
+  }
+  function joinDayLog(rows) {
+    var a = {}, r1 = rows[1] || {}, r2 = rows[2] || {}, r3 = rows[3] || {};
+    [r1, r2, r3].forEach(function (r) { pick(r, DAY_ONCE, "", a, ""); });
+    pick(r1, START_ONLY, "", a, "");
+    [r1, r2, r3].forEach(function (r, i) { pick(r, WALK_EACH, "", a, "w" + (i + 1) + "_"); });
+    [[r1, "pre", "m0"], [r1, "post", "m1"], [r2, "post", "m2"], [r3, "post", "m3"]].forEach(function (p) { ["1", "2"].forEach(function (k) { pick(p[0], BP_IDS, p[1] + k + "_", a, p[2] + "_r" + k + "_"); }); });
+    [[r2, "pre", "m1"], [r3, "pre", "m2"]].forEach(function (p) { ["1", "2"].forEach(function (k) { BP_IDS.forEach(function (i) { var dk = p[2] + "_r" + k + "_" + i, v = p[0][p[1] + k + "_" + i]; if (a[dk] === undefined && v !== undefined) a[dk] = v; }); }); });
+    return a;
+  }
+
   /* ---------- flat field list (used to generate the SQL views) ---------- */
   function flat(formKey) {
     var out = [];
@@ -240,7 +291,7 @@
     return out;
   }
 
-  var SPEC = { L: L, SITES: SITES, ORDERS: ORDERS, ALL_ORDERS: ALL_ORDERS, MOOD_MODULE: MOOD_MODULE, FORMS: FORMS, PHOTOS: PHOTOS, PHOTO_TEXT: PHOTO_TEXT, DIGITS: DIGITS, DIGIT_PRACTICE: DIGIT_PRACTICE, LOG: LOG, flat: flat,
+  var SPEC = { L: L, SITES: SITES, ORDERS: ORDERS, ALL_ORDERS: ALL_ORDERS, MOOD_MODULE: MOOD_MODULE, FORMS: FORMS, PHOTOS: PHOTOS, PHOTO_TEXT: PHOTO_TEXT, DIGITS: DIGITS, DIGIT_PRACTICE: DIGIT_PRACTICE, LOG: LOG, buildDayLog: buildDayLog, splitDayLog: splitDayLog, joinDayLog: joinDayLog, flat: flat,
                MOOD_IDS: MOOD_ITEMS.map(function (m) { return "mood_" + m[0]; }) };
   if (typeof module !== "undefined" && module.exports) module.exports = SPEC; else root.SPEC = SPEC;
 })(typeof window !== "undefined" ? window : this);

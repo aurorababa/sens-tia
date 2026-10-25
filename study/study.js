@@ -238,12 +238,9 @@
       if (s.walk && s.form === "before") btns.push(null);
       ul.appendChild(h("li", { class: cls }, [h("div", { class: "lbl" }, [s.label, s.sub ? h("div", { class: "muted", text: s.sub }) : null]), h("div", { class: "row" }, btns)]));
     });
-    var logs = h("ul", { class: "steps" });
-    for (var n = 1; n <= 3; n++) (function (n) {
-      var has = (st.log || []).indexOf(n) >= 0;
-      logs.appendChild(h("li", {}, [h("div", { class: "lbl", text: "Walk " + n + " (" + siteNameEn(walkSite(n)) + "): session log" + (has ? "  ✓ saved" : "") }),
-        h("button", { type: "button", class: "sbtn sec", text: has ? "Edit log" : "Open log", onclick: function () { viewLog(n); } })]));
-    })(n);
+    var has = (st.log || []).length > 0;
+    var logs = h("ul", { class: "steps" }, [h("li", {}, [h("div", { class: "lbl", text: "Session log for the whole day" + (has ? "  ✓ saved" : "") }),
+      h("button", { type: "button", class: "sbtn sec", text: has ? "Edit log" : "Open log", onclick: function () { viewLog(); } })])]);
     var chk = h("input", { type: "checkbox", id: "ua" }); chk.checked = unlockAll;
     chk.addEventListener("change", function () { unlockAll = chk.checked; viewDash(); });
     show([
@@ -499,32 +496,40 @@
     if (practiceDone) trial(); else practice();
   }
 
-  /* ---------- researcher log ---------- */
-  function viewLog(n) {
+  /* ---------- researcher log: ONE log for the whole participant day ---------- */
+  function viewLog() {
     S.view = "log";
-    var st = S.state, site = walkSite(n);
+    var st = S.state, names = [1, 2, 3].map(function (n) { return siteNameEn(walkSite(n)); }), spec = SPEC.buildDayLog(names);
     var ans = {}, errBox = h("div", { class: "errsum", hidden: true }), holder = h("div");
-    var dk = draftKey(st.code, "log:" + n);
+    var dk = draftKey(st.code, "log:day");
     function drawWith(data) {
       ans = data; holder.innerHTML = "";
-      renderSpec(SPEC.LOG, ans, true, function () { ls(dk, JSON.stringify(ans)); }).forEach(function (x) { holder.appendChild(x); });
+      renderSpec(spec, ans, true, function () { ls(dk, JSON.stringify(ans)); }).forEach(function (x) { holder.appendChild(x); });
     }
+    var today = new Date().toISOString().slice(0, 10);
     var draft = lsj(dk, null);
     holder.appendChild(h("p", { class: "muted", text: "Loading…" }));
     if (draft) drawWith(draft);
-    else call("study_get_log", { p_key: S.key, p_code: st.code, p_walk: n }).then(function (d) {
-      var data = d || {}; if (!data.date) data.date = new Date().toISOString().slice(0, 10); drawWith(data);
-    }, function (e) { handleErr(e, errBox); drawWith({ date: new Date().toISOString().slice(0, 10) }); });
+    else {
+      var rows = {}, left = 3;
+      var fin = function () { if (--left) return; var data = SPEC.joinDayLog(rows); if (!data.date) data.date = today; drawWith(data); };
+      [1, 2, 3].forEach(function (n) {
+        call("study_get_log", { p_key: S.key, p_code: st.code, p_walk: n }).then(function (d) { rows[n] = d || {}; fin(); }, function (e) { handleErr(e, errBox); rows[n] = {}; fin(); });
+      });
+    }
     var save = h("button", { type: "button", class: "sbtn big", text: "Save log", onclick: function () {
-      var v = validate(SPEC.LOG, ans, holder);
+      var v = validate(spec, ans, holder);
       if (v.bad) { errBox.hidden = false; errBox.textContent = "Please check the highlighted fields (" + v.bad + ") – a value is outside its allowed range."; if (v.first) v.first.scrollIntoView({ block: "center" }); return; }
-      var body = { code: st.code, walk_no: n, site: site, data: ans };
-      enqueue({ id: uuid(), fn: "study_save_log", body: body, code: st.code });
-      ls(dk, null); if (st.log.indexOf(n) < 0) st.log.push(n);
+      var parts = SPEC.splitDayLog(ans);
+      [1, 2, 3].forEach(function (n) {
+        enqueue({ id: uuid(), fn: "study_save_log", body: { code: st.code, walk_no: n, site: walkSite(n), data: parts[n] }, code: st.code });
+        if (st.log.indexOf(n) < 0) st.log.push(n);
+      });
+      ls(dk, null);
       viewDash();
     } });
-    show([h("p", { class: "walkhead", text: st.code + " · walk " + n }), h("h1", { text: "Session log: " + siteNameEn(site) }),
-      h("p", { class: "muted", text: "Fill in what applies. Fields can stay empty. You can come back and edit the log later." }), errBox, holder,
+    show([h("p", { class: "walkhead", text: st.code + " · whole day" }), h("h1", { text: "Session log (one log for the day)" }),
+      h("p", { class: "muted", text: "Fill in what applies. The reading after a walk is also used as the 'before' reading of the next walk. Fields can stay empty. You can save now and come back to edit later." }), errBox, holder,
       h("div", { class: "sticky-actions row" }, [save, h("button", { type: "button", class: "sbtn sec", text: "Back", onclick: viewDash })])]);
     paintBar();
   }
